@@ -68,25 +68,24 @@ public class AddressCache {
 			this.value = value;
 			Calendar cal = Calendar.getInstance();
 			cal.setTimeInMillis(timeToExpire);
-			System.out.println("Added Time = "+timeToLive);
-			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-			System.out.println("Before Time : "+sdf.format(cal.getTime()));
+//			System.out.println("Added Time = "+timeToLive);
+//			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+//			System.out.println("Before Time : "+sdf.format(cal.getTime()));
 			timeToExpire += timeToLive;
 			cal.setTimeInMillis(timeToExpire);
-			System.out.println("After Time : "+sdf.format(cal.getTime()));
+//			System.out.println("After Time : "+sdf.format(cal.getTime()));
 		}	
 		
 		public boolean isExpired(){
 			Calendar cal = Calendar.getInstance();
-			
 			cal.setTimeInMillis(timeToExpire);
 			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-			System.out.println("Time to Expire: "+sdf.format(cal.getTime()));
-			System.out.println("Current Time: "+sdf.format(new Date()));
+			System.out.println("Value: "+this.value+", Time to Expire: "+sdf.format(cal.getTime()));
+			System.out.println("Value: "+this.value+", Current Time: "+sdf.format(new Date()));
 			if (cal.getTime().before(new Date()))
-				return false;
-			else
 				return true;
+			else
+				return false;
 		}
 	}
 	
