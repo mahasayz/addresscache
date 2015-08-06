@@ -11,6 +11,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+
+import sun.misc.Lock;
 
 /*
  * The AddressCache has a max age for the elements it's storing, an add method 
@@ -20,8 +24,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class AddressCache {
 	
+	private static final int MAX_SIZE = 5;
 	private long timeToLive;
 	private static Map<String, CacheObject> cacheMap;
+	ReentrantLock lock = new ReentrantLock();
+	Condition notEmpty = lock.newCondition();
+	Condition notFull = lock.newCondition();
 
 	static {
 		try {
@@ -50,7 +58,6 @@ public class AddressCache {
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
-					return;
 				}
 			});
 			cleaner.setDaemon(true);
@@ -104,7 +111,20 @@ public class AddressCache {
 	public boolean add(InetAddress address) {
 		if (cacheMap.containsKey(address))
 			return false;
-		cacheMap.put(address.getHostAddress(), new CacheObject(address));
+		final ReentrantLock lock = this.lock;
+		try {
+			lock.lockInterruptibly();
+			while (cacheMap.size() == MAX_SIZE)
+				notFull.await();
+			cacheMap.put(address.getHostAddress(), new CacheObject(address));
+			System.out.println("Added "+address.getHostAddress());
+			notEmpty.signal();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			lock.unlock();
+		}
 		return true;
 	}
 
@@ -126,6 +146,9 @@ public class AddressCache {
 	 * @return
 	 */
 	public InetAddress peek() {
+		if (cacheMap.size() == 0) {
+			return null;
+		}
 		final Set<Entry<String, CacheObject>> mapValues = cacheMap.entrySet();
 		final int size = mapValues.size();
 		final Entry<String, CacheObject>[] queueImpl = new Entry[size];
@@ -138,6 +161,7 @@ public class AddressCache {
 			cacheMap.remove(elem.value.getHostAddress());
 			return null;
 		} else {
+			elem.timeToExpire = System.currentTimeMillis() + timeToLive;
 			return elem.value;
 		}
 	}
@@ -148,19 +172,40 @@ public class AddressCache {
 	 * @return
 	 */
 	public InetAddress take() {
-		final Set<Entry<String, CacheObject>> mapValues = cacheMap.entrySet();
-		final int size = mapValues.size();
-		final Entry<String, CacheObject>[] queueImpl = new Entry[size];
-		mapValues.toArray(queueImpl);
-		
-		CacheObject elem = queueImpl[size - 1].getValue();
-		if (elem == null)
-			return null;
-		cacheMap.remove(elem.value.getHostAddress());
-		if (elem.isExpired()) {
-			return null;
-		} else {
-			return elem.value;
+		final ReentrantLock lock = this.lock;
+		InetAddress retVal = null;
+		try {
+			lock.lockInterruptibly();
+			while (cacheMap.size() == 0)
+				notEmpty.await();
+			
+			final Set<Entry<String, CacheObject>> mapValues = cacheMap.entrySet();
+			final int size = mapValues.size();
+			final Entry<String, CacheObject>[] queueImpl = new Entry[size];
+			mapValues.toArray(queueImpl);
+			
+			CacheObject elem = queueImpl[size - 1].getValue();
+			if (elem == null)
+				retVal = null;
+			cacheMap.remove(elem.value.getHostAddress());
+			if (elem.isExpired()) {
+				retVal = null;
+			} else {
+				retVal = elem.value;
+				System.out.println("Got "+retVal.getHostAddress());
+			}
+			
+			notFull.signal();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
+			lock.unlock();
 		}
+		return retVal;
+	}
+	
+	public int size() {
+		return cacheMap.size();
 	}
 }
