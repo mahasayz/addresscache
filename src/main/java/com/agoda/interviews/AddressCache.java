@@ -13,8 +13,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-
-import sun.misc.Lock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /*
  * The AddressCache has a max age for the elements it's storing, an add method 
@@ -31,6 +31,8 @@ public class AddressCache {
 	Condition notEmpty = lock.newCondition();
 	Condition notFull = lock.newCondition();
 
+	private static Logger logger = null;
+	
 	static {
 		try {
 			Thread cleaner = new Thread(new Runnable() {
@@ -38,20 +40,20 @@ public class AddressCache {
 				public void run() {
 					try{
 						while (true) {
-							System.out.println("Scanning for expired objects");
+							logger.info("Scanning for expired objects");
 							if (cacheMap != null) {
 								Set<String> keySet = cacheMap.keySet();
-								System.out.println("Starting Size : " + keySet.size());
+								logger.info("Starting Size : " + keySet.size());
 								Iterator<String> keys = keySet.iterator();
 								while (keys.hasNext()) {
 									String key = keys.next();
 									CacheObject elem = cacheMap.get(key);
 									if (elem.isExpired()) {
 										keys.remove();
-										System.out.println("Removed: "+elem.value.getHostAddress());
+										logger.info("Removed: "+elem.value.getHostAddress());
 									}
 								}
-								System.out.println("Ending Size : " + cacheMap.size());
+								logger.info("Ending Size : " + cacheMap.size());
 							}
 							Thread.sleep(intervalTime);
 						}
@@ -75,20 +77,20 @@ public class AddressCache {
 			this.value = value;
 			Calendar cal = Calendar.getInstance();
 			cal.setTimeInMillis(timeToExpire);
-//			System.out.println("Added Time = "+timeToLive);
+//			logger.info("Added Time = "+timeToLive);
 //			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-//			System.out.println("Before Time : "+sdf.format(cal.getTime()));
+//			logger.info("Before Time : "+sdf.format(cal.getTime()));
 			timeToExpire += timeToLive;
 			cal.setTimeInMillis(timeToExpire);
-//			System.out.println("After Time : "+sdf.format(cal.getTime()));
+//			logger.info("After Time : "+sdf.format(cal.getTime()));
 		}	
 		
 		public boolean isExpired(){
 			Calendar cal = Calendar.getInstance();
 			cal.setTimeInMillis(timeToExpire);
 			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-			System.out.println("Value: "+this.value+", Time to Expire: "+sdf.format(cal.getTime()));
-			System.out.println("Value: "+this.value+", Current Time: "+sdf.format(new Date()));
+			logger.info("Value: "+this.value+", Time to Expire: "+sdf.format(cal.getTime()));
+			logger.info("Value: "+this.value+", Current Time: "+sdf.format(new Date()));
 			if (cal.getTime().before(new Date()))
 				return true;
 			else
@@ -98,6 +100,7 @@ public class AddressCache {
 	
 	public AddressCache(long maxAge, TimeUnit unit) {
 		timeToLive = unit.toMillis(maxAge);
+		logger = Logger.getLogger(AddressCache.class.getName());
 		cacheMap = Collections.synchronizedMap(new LinkedHashMap<String, CacheObject>());
 	}
 	
@@ -117,11 +120,10 @@ public class AddressCache {
 			while (cacheMap.size() == MAX_SIZE)
 				notFull.await();
 			cacheMap.put(address.getHostAddress(), new CacheObject(address));
-			System.out.println("Added "+address.getHostAddress());
+			logger.info("Added "+address.getHostAddress());
 			notEmpty.signal();
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.log(Level.WARNING, e.getMessage());
 		} finally {
 			lock.unlock();
 		}
@@ -192,13 +194,13 @@ public class AddressCache {
 				retVal = null;
 			} else {
 				retVal = elem.value;
-				System.out.println("Got "+retVal.getHostAddress());
+				logger.info("Got "+retVal.getHostAddress());
 			}
 			
 			notFull.signal();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			logger.log(Level.WARNING, e.getMessage());
 		} finally {
 			lock.unlock();
 		}
