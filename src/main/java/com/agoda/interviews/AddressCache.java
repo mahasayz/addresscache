@@ -23,7 +23,7 @@ import java.util.logging.Logger;
  * and returns the most recently added element.
  */
 public class AddressCache {
-	
+
 	private static final int MAX_SIZE = 5;
 	private long timeToLive;
 	private static Map<String, CacheObject> cacheMap;
@@ -32,13 +32,14 @@ public class AddressCache {
 	Condition notFull = lock.newCondition();
 
 	private static Logger logger = null;
-	
+
 	static {
 		try {
 			Thread cleaner = new Thread(new Runnable() {
 				int intervalTime = 5000;
+
 				public void run() {
-					try{
+					try {
 						while (true) {
 							logger.info("Scanning for expired objects");
 							if (cacheMap != null) {
@@ -50,7 +51,8 @@ public class AddressCache {
 									CacheObject elem = cacheMap.get(key);
 									if (elem.isExpired()) {
 										keys.remove();
-										logger.info("Removed: "+elem.value.getHostAddress());
+										logger.info("Removed: "
+												+ elem.value.getHostAddress());
 									}
 								}
 								logger.info("Ending Size : " + cacheMap.size());
@@ -68,45 +70,42 @@ public class AddressCache {
 			e.printStackTrace();
 		}
 	}
-	
+
 	protected class CacheObject {
 		public long timeToExpire = System.currentTimeMillis();
 		public InetAddress value;
-		
+
 		protected CacheObject(InetAddress value) {
 			this.value = value;
-			Calendar cal = Calendar.getInstance();
-			cal.setTimeInMillis(timeToExpire);
-//			logger.info("Added Time = "+timeToLive);
-//			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-//			logger.info("Before Time : "+sdf.format(cal.getTime()));
 			timeToExpire += timeToLive;
-			cal.setTimeInMillis(timeToExpire);
-//			logger.info("After Time : "+sdf.format(cal.getTime()));
-		}	
-		
-		public boolean isExpired(){
+		}
+
+		public boolean isExpired() {
 			Calendar cal = Calendar.getInstance();
 			cal.setTimeInMillis(timeToExpire);
 			SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-			logger.info("Value: "+this.value+", Time to Expire: "+sdf.format(cal.getTime()));
-			logger.info("Value: "+this.value+", Current Time: "+sdf.format(new Date()));
+			logger.info("Value: " + this.value + ", Time to Expire: "
+					+ sdf.format(cal.getTime()));
+			logger.info("Value: " + this.value + ", Current Time: "
+					+ sdf.format(new Date()));
 			if (cal.getTime().before(new Date()))
 				return true;
 			else
 				return false;
 		}
 	}
-	
+
 	public AddressCache(long maxAge, TimeUnit unit) {
 		timeToLive = unit.toMillis(maxAge);
 		logger = Logger.getLogger(AddressCache.class.getName());
-		cacheMap = Collections.synchronizedMap(new LinkedHashMap<String, CacheObject>());
+		cacheMap = Collections
+				.synchronizedMap(new LinkedHashMap<String, CacheObject>());
 	}
-	
+
 	/**
-	 * add() method must store unique elements only (existing elements must be ignored). 
-	 * This will return true if the element was successfully added. 
+	 * add() method must store unique elements only (existing elements must be
+	 * ignored). This will return true if the element was successfully added.
+	 * 
 	 * @param address
 	 * @return
 	 */
@@ -120,7 +119,7 @@ public class AddressCache {
 			while (cacheMap.size() == MAX_SIZE)
 				notFull.await();
 			cacheMap.put(address.getHostAddress(), new CacheObject(address));
-			logger.info("Added "+address.getHostAddress());
+			logger.info("Added " + address.getHostAddress());
 			notEmpty.signal();
 		} catch (InterruptedException e) {
 			logger.log(Level.WARNING, e.getMessage());
@@ -132,6 +131,7 @@ public class AddressCache {
 
 	/**
 	 * remove() method will return true if the address was successfully removed
+	 * 
 	 * @param address
 	 * @return
 	 */
@@ -143,8 +143,9 @@ public class AddressCache {
 	}
 
 	/**
-	 * The peek() method will return the most recently added element, 
-	 * null if no element exists.
+	 * The peek() method will return the most recently added element, null if no
+	 * element exists.
+	 * 
 	 * @return
 	 */
 	public InetAddress peek() {
@@ -155,7 +156,7 @@ public class AddressCache {
 		final int size = mapValues.size();
 		final Entry<String, CacheObject>[] queueImpl = new Entry[size];
 		mapValues.toArray(queueImpl);
-		
+
 		CacheObject elem = queueImpl[size - 1].getValue();
 		if (elem == null)
 			return null;
@@ -169,8 +170,9 @@ public class AddressCache {
 	}
 
 	/**
-	 * take() method retrieves and removes the most recently added element 
-	 * from the cache and waits if necessary until an element becomes available.
+	 * take() method retrieves and removes the most recently added element from
+	 * the cache and waits if necessary until an element becomes available.
+	 * 
 	 * @return
 	 */
 	public InetAddress take() {
@@ -180,12 +182,13 @@ public class AddressCache {
 			lock.lockInterruptibly();
 			while (cacheMap.size() == 0)
 				notEmpty.await();
-			
-			final Set<Entry<String, CacheObject>> mapValues = cacheMap.entrySet();
+
+			final Set<Entry<String, CacheObject>> mapValues = cacheMap
+					.entrySet();
 			final int size = mapValues.size();
 			final Entry<String, CacheObject>[] queueImpl = new Entry[size];
 			mapValues.toArray(queueImpl);
-			
+
 			CacheObject elem = queueImpl[size - 1].getValue();
 			if (elem == null)
 				retVal = null;
@@ -194,9 +197,9 @@ public class AddressCache {
 				retVal = null;
 			} else {
 				retVal = elem.value;
-				logger.info("Got "+retVal.getHostAddress());
+				logger.info("Got " + retVal.getHostAddress());
 			}
-			
+
 			notFull.signal();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
@@ -206,7 +209,7 @@ public class AddressCache {
 		}
 		return retVal;
 	}
-	
+
 	public int size() {
 		return cacheMap.size();
 	}
